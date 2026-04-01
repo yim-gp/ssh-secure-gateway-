@@ -52,7 +52,7 @@ while true; do
       echo "✅ Access granted"
       sleep 1
       echo "Opening shell... (type 'exit' to return to menu)"
-      bash --norc
+      bash
       ;;
     2)
       show_banner
