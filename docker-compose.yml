@@ -9,6 +9,5 @@ services:
     volumes:
       - ./gateway-shell.sh:/usr/local/bin/gateway-shell.sh:ro
       - ./send-otp.py:/usr/local/bin/send-otp.py:ro
-    env_file:
-      - .env
+      - ./.env:/usr/local/etc/gateway.env:ro
     restart: unless-stopped

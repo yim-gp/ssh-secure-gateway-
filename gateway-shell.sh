@@ -42,14 +42,8 @@ while true; do
       echo "✅ OTP sent. Check your email."
       echo "Reference: $OTP_REF"
       echo
-      read -p "Enter reference: " input_ref
       read -s -p "Enter OTP: " input_otp
       echo
-      if [ "$input_ref" != "$OTP_REF" ]; then
-        echo "❌ Invalid reference"
-        sleep 2
-        continue
-      fi
       if [ "$input_otp" != "$OTP" ]; then
         echo "❌ Invalid OTP"
         sleep 2
