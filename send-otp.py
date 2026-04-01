@@ -59,37 +59,54 @@ def main() -> int:
 
     html_body = f"""\
 <html>
-    <body style=\"margin:0;padding:0;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;color:#1d2939;\">
-        <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f4f6fb;padding:24px 12px;\">
+    <head>
+        <meta name=\"color-scheme\" content=\"light dark\">
+        <meta name=\"supported-color-schemes\" content=\"light dark\">
+        <style>
+            @media (prefers-color-scheme: dark) {{
+                body, .page {{ background:#111417 !important; color:#e5e7eb !important; }}
+                .card {{ background:#1a1f24 !important; border-color:#2a3138 !important; }}
+                .header {{ background:#2b3440 !important; color:#f3f4f6 !important; }}
+                .subtle-box {{ background:#20262d !important; border-color:#323a43 !important; }}
+                .label {{ color:#9ca3af !important; }}
+                .value {{ color:#f3f4f6 !important; }}
+                .otp {{ color:#93c5fd !important; }}
+                .note {{ color:#cbd5e1 !important; }}
+                .footer {{ background:#151a1f !important; border-color:#2a3138 !important; color:#9ca3af !important; }}
+            }}
+        </style>
+    </head>
+    <body class=\"page\" style=\"margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">
+        <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f3f4f6;padding:24px 12px;\">
             <tr>
                 <td align=\"center\">
-                    <table role=\"presentation\" width=\"560\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:560px;background:#ffffff;border:1px solid #e4e7ec;border-radius:14px;overflow:hidden;\">
+                    <table class=\"card\" role=\"presentation\" width=\"560\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:560px;background:#ffffff;border:1px solid #d1d5db;border-radius:14px;overflow:hidden;\">
                         <tr>
-                            <td style=\"background:linear-gradient(135deg,#155eef,#004eeb);padding:20px 24px;color:#ffffff;font-size:18px;font-weight:700;\">
+                            <td class=\"header\" style=\"background:#374151;padding:20px 24px;color:#f9fafb;font-size:18px;font-weight:700;\">
                                 Gateway OTP Verification
                             </td>
                         </tr>
                         <tr>
                             <td style=\"padding:24px;\">
-                                <p style=\"margin:0 0 14px 0;font-size:14px;line-height:1.6;\">Your one-time password request is ready.</p>
-                                <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:0 0 16px 0;background:#f8f9fc;border:1px solid #eaecf0;border-radius:10px;\">
+                                <p class=\"note\" style=\"margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#374151;\">Your one-time password request is ready.</p>
+                                <table class=\"subtle-box\" role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:0 0 16px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;\">
                                     <tr>
                                         <td style=\"padding:16px 18px;\">
-                                            <p style=\"margin:0 0 8px 0;font-size:12px;color:#475467;letter-spacing:0.02em;\">Reference</p>
-                                            <p style=\"margin:0;font-size:16px;font-weight:700;color:#101828;\">{safe_otp_ref}</p>
+                                            <p class=\"label\" style=\"margin:0 0 8px 0;font-size:12px;color:#6b7280;letter-spacing:0.02em;\">Reference</p>
+                                            <p class=\"value\" style=\"margin:0;font-size:16px;font-weight:700;color:#111827;\">{safe_otp_ref}</p>
                                         </td>
                                     </tr>
                                 </table>
-                                <p style=\"margin:0 0 10px 0;font-size:12px;color:#475467;letter-spacing:0.02em;\">OTP Code</p>
-                                <p style=\"margin:0 0 16px 0;font-size:32px;line-height:1.1;font-weight:800;letter-spacing:8px;color:#155eef;\">{safe_otp}</p>
-                                <p style=\"margin:0;font-size:13px;line-height:1.6;color:#475467;\">
+                                <p class=\"label\" style=\"margin:0 0 10px 0;font-size:12px;color:#6b7280;letter-spacing:0.02em;\">OTP Code</p>
+                                <p class=\"otp\" style=\"margin:0 0 16px 0;font-size:32px;line-height:1.1;font-weight:800;letter-spacing:8px;color:#1d4ed8;\">{safe_otp}</p>
+                                <p class=\"note\" style=\"margin:0;font-size:13px;line-height:1.6;color:#4b5563;\">
                                     Use this reference to match the latest OTP request.<br>
                                     This OTP is valid for this session only.
                                 </p>
                             </td>
                         </tr>
                         <tr>
-                            <td style=\"padding:14px 24px;background:#f9fafb;border-top:1px solid #eaecf0;font-size:12px;line-height:1.6;color:#667085;\">
+                            <td class=\"footer\" style=\"padding:14px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;line-height:1.6;color:#6b7280;\">
                                 This is an automated message from Gateway. Please do not reply.
                             </td>
                         </tr>
