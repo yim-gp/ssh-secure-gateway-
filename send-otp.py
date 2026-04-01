@@ -41,6 +41,8 @@ def main() -> int:
     ]
     otp = os.environ.get("_OTP", "").strip()
     otp_ref = os.environ.get("_OTP_REF", "").strip()
+    otp_ttl_seconds = int(os.environ.get("_OTP_TTL", "120") or "120")
+    otp_ttl_minutes = max(1, otp_ttl_seconds // 60)
 
     if not all([host, user, passwd, recipients, otp, otp_ref]):
         print("Mail error: missing OTP context or SMTP values in /usr/local/etc/gateway.env")
@@ -54,7 +56,7 @@ def main() -> int:
         f"Reference: {otp_ref}\n"
         f"OTP: {otp}\n\n"
         "Use this reference to match the latest OTP request.\n"
-        "This OTP is valid for this session only."
+        f"This OTP expires in {otp_ttl_minutes} minute(s)."
     )
 
     html_body = f"""\
@@ -101,7 +103,7 @@ def main() -> int:
                                 <p class=\"otp\" style=\"margin:0 0 16px 0;font-size:32px;line-height:1.1;font-weight:800;letter-spacing:8px;color:#1d4ed8;\">{safe_otp}</p>
                                 <p class=\"note\" style=\"margin:0;font-size:13px;line-height:1.6;color:#4b5563;\">
                                     Use this reference to match the latest OTP request.<br>
-                                    This OTP is valid for this session only.
+                                    This OTP expires in {otp_ttl_minutes} minute(s).
                                 </p>
                             </td>
                         </tr>

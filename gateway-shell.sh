@@ -21,6 +21,9 @@ if [ -f /etc/gateway-otp.env ]; then
   . /etc/gateway-otp.env
 fi
 
+MAX_OTP_REQUESTS_PER_SESSION=5
+OTP_REQUEST_COUNT=0
+
 while true; do
   show_banner
   show_menu
@@ -28,11 +31,21 @@ while true; do
 
   case "$choice" in
     1)
+      if [ "$OTP_REQUEST_COUNT" -ge "$MAX_OTP_REQUESTS_PER_SESSION" ]; then
+        echo
+        echo "❌ OTP request limit exceeded for this session. Disconnecting..."
+        sleep 1
+        exit 1
+      fi
+      OTP_REQUEST_COUNT=$((OTP_REQUEST_COUNT + 1))
+      REMAINING_REQUESTS=$((MAX_OTP_REQUESTS_PER_SESSION - OTP_REQUEST_COUNT))
       echo
       echo "⏳ Sending OTP to your email..."
-      OTP_REF=$(python3 -c "import random, string; print(''.join(random.choices(string.ascii_uppercase + string.digits, k=6)))")
-      OTP=$(python3 -c "import random; print(f'{random.randint(0,999999):06d}')")
-      _OTP_REF="$OTP_REF" _OTP="$OTP" python3 /usr/local/bin/send-otp.py
+      OTP_TTL=120
+      OTP_REF=$(python3 -c "import secrets, string; alphabet = string.ascii_uppercase + string.digits; print(''.join(secrets.choice(alphabet) for _ in range(6)))")
+      OTP=$(python3 -c "import secrets; print(f'{secrets.randbelow(1_000_000):06d}')")
+      OTP_ISSUED_AT=$(date +%s)
+      _OTP_REF="$OTP_REF" _OTP="$OTP" _OTP_TTL="$OTP_TTL" python3 /usr/local/bin/send-otp.py
       SEND_STATUS=$?
       if [ $SEND_STATUS -ne 0 ]; then
         echo "❌ Failed to send OTP. Contact admin."
@@ -41,14 +54,43 @@ while true; do
       fi
       echo "✅ OTP sent. Check your email."
       echo "Reference: $OTP_REF"
+      echo "OTP expires in 2 minutes."
+      echo "OTP requests remaining this session: $REMAINING_REQUESTS"
       echo
-      read -s -p "Enter OTP: " input_otp
-      echo
-      if [ "$input_otp" != "$OTP" ]; then
-        echo "❌ Invalid OTP"
+      MAX_OTP_ATTEMPTS=3
+      OTP_VALIDATED=0
+      ATTEMPT=1
+      while [ "$ATTEMPT" -le "$MAX_OTP_ATTEMPTS" ]; do
+        read -s -p "Enter OTP (attempt $ATTEMPT/$MAX_OTP_ATTEMPTS): " input_otp
+        echo
+        OTP_NOW=$(date +%s)
+        OTP_AGE=$((OTP_NOW - OTP_ISSUED_AT))
+        if [ "$OTP_AGE" -gt "$OTP_TTL" ]; then
+          echo "⌛ OTP expired. Please request a new OTP."
+          break
+        fi
+        if [ "$input_otp" = "$OTP" ]; then
+          OTP_VALIDATED=1
+          break
+        fi
+        REMAINING=$((MAX_OTP_ATTEMPTS - ATTEMPT))
+        if [ "$REMAINING" -gt 0 ]; then
+          echo "❌ Invalid OTP ($REMAINING attempt(s) remaining)"
+        else
+          echo "❌ Invalid OTP. Maximum attempts reached."
+        fi
+        ATTEMPT=$((ATTEMPT + 1))
+      done
+      if [ "$OTP_VALIDATED" -ne 1 ]; then
+        OTP=""
+        OTP_REF=""
+        OTP_ISSUED_AT=0
         sleep 2
         continue
       fi
+      OTP=""
+      OTP_REF=""
+      OTP_ISSUED_AT=0
       echo "✅ Access granted"
       sleep 1
       echo "Opening shell... (type 'exit' to return to menu)"
