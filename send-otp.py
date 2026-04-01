@@ -31,11 +31,16 @@ def main() -> int:
     port = int(config.get("SMTP_PORT", "587"))
     user = config.get("SMTP_USER", "")
     passwd = config.get("SMTP_PASS", "")
-    to = config.get("OTP_TO", "")
+    to_raw = config.get("OTP_TO", "")
+    recipients = [
+        addr.strip()
+        for addr in to_raw.replace(";", ",").split(",")
+        if addr.strip()
+    ]
     otp = os.environ.get("_OTP", "").strip()
     otp_ref = os.environ.get("_OTP_REF", "").strip()
 
-    if not all([host, user, passwd, to, otp, otp_ref]):
+    if not all([host, user, passwd, recipients, otp, otp_ref]):
         print("Mail error: missing OTP context or SMTP values in /usr/local/etc/gateway.env")
         return 1
 
@@ -47,7 +52,7 @@ def main() -> int:
     )
     msg["Subject"] = f"[Gateway] OTP Ref {otp_ref}"
     msg["From"] = user
-    msg["To"] = to
+    msg["To"] = ", ".join(recipients)
 
     try:
         with smtplib.SMTP(host, port, timeout=20) as smtp:
@@ -55,7 +60,7 @@ def main() -> int:
             smtp.starttls()
             smtp.ehlo()
             smtp.login(user, passwd)
-            smtp.sendmail(user, [to], msg.as_string())
+            smtp.sendmail(user, recipients, msg.as_string())
     except Exception as exc:
         print(f"Mail error: {exc}")
         return 1
