@@ -1,0 +1,14 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gateway-v2
+    ports:
+      - "2222:22"
+    volumes:
+      - ./gateway-shell.sh:/usr/local/bin/gateway-shell.sh:ro
+      - ./send-otp.py:/usr/local/bin/send-otp.py:ro
+    env_file:
+      - .env
+    restart: unless-stopped
