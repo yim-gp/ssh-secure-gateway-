@@ -18,6 +18,7 @@ Use this flow from top to bottom. Do not debug mail first if SSH itself is not w
 docker compose ps
 docker compose logs --tail=100 gateway
 docker port gateway-v2
+ls -l ./logs/gateway
 ```
 
 #### Native Linux
@@ -89,6 +90,8 @@ _OTP_REF=TEST01 _OTP=123456 _OTP_TTL=120 python3 /usr/local/bin/send-otp.py
 whoami
 pwd
 env | grep -E 'SMTP|OTP'
+tail -n 20 /var/log/gateway/open-shell-audit.jsonl
+tail -n 20 ./logs/gateway/open-shell-audit.jsonl
 ```
 
 ### Likely causes
@@ -96,6 +99,7 @@ env | grep -E 'SMTP|OTP'
 - Wrong user shell.
 - Environment file was not loaded.
 - User permissions or home directory are broken.
+- Audit log path is not writable.
 
 ## 6. One-Command Sanity Checks
 

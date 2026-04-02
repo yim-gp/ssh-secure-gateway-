@@ -2,9 +2,14 @@
 .env
 .env.local
 
+logs/
+
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+
+# Gateway audit logs
+logs/gateway/*.jsonl

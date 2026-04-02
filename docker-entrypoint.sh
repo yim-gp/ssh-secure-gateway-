@@ -4,6 +4,8 @@ set -e
 SCRIPT_PATH="/usr/local/bin/gateway-shell.sh"
 SSHD_CONFIG="/etc/ssh/sshd_config"
 OTP_ENV_FILE="/etc/gateway-otp.env"
+AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.jsonl}"
+AUDIT_LOG_DIR="$(dirname "$AUDIT_LOG_FILE")"
 
 # If no mounted script exists, create a safe default fallback.
 if [ ! -f "$SCRIPT_PATH" ]; then
@@ -53,7 +55,15 @@ fi
   printf "export SMTP_USER=%q\n" "${SMTP_USER:-}"
   printf "export SMTP_PASS=%q\n" "${SMTP_PASS:-}"
   printf "export OTP_TO=%q\n" "${OTP_TO:-}"
+  printf "export GATEWAY_AUDIT_LOG=%q\n" "$AUDIT_LOG_FILE"
 } > "$OTP_ENV_FILE"
-chmod 600 "$OTP_ENV_FILE"
+chown root:limited "$OTP_ENV_FILE"
+chmod 640 "$OTP_ENV_FILE"
+
+mkdir -p "$AUDIT_LOG_DIR"
+touch "$AUDIT_LOG_FILE"
+chown -R limited:limited "$AUDIT_LOG_DIR"
+chmod 750 "$AUDIT_LOG_DIR"
+chmod 640 "$AUDIT_LOG_FILE"
 
 exec "$@"

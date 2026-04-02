@@ -20,6 +20,7 @@ Gateway V2 is an SSH gateway that forces users through a menu-driven shell and s
 3. The menu triggers OTP generation.
 4. `send-otp.py` sends the OTP to the configured email recipients.
 5. If the OTP is correct and not expired, the user gets a shell.
+6. Each `Open Shell` attempt is appended as JSONL to `/var/log/gateway/open-shell-audit.jsonl` unless `GATEWAY_AUDIT_LOG` overrides the path.
 
 ## Prerequisites
 
@@ -81,6 +82,7 @@ docker compose up --build -d
 docker compose ps
 docker compose logs --tail=100 gateway
 docker exec -it gateway-v2 /bin/bash
+ls -l ./logs/gateway
 ```
 
 ### Validate mounted files inside the container
@@ -103,7 +105,7 @@ sudo apt install -y openssh-server sudo python3 python3-pip
 2. Create required directories.
 
 ```bash
-sudo mkdir -p /usr/local/bin /usr/local/etc
+sudo mkdir -p /usr/local/bin /usr/local/etc /var/log/gateway
 ```
 
 3. Copy project files into system paths.
@@ -124,6 +126,11 @@ sudo chmod 600 /usr/local/etc/gateway.env
 ```bash
 sudo useradd -m limited
 sudo passwd limited
+sudo chown limited:limited /var/log/gateway
+sudo chmod 750 /var/log/gateway
+sudo touch /var/log/gateway/open-shell-audit.jsonl
+sudo chown limited:limited /var/log/gateway/open-shell-audit.jsonl
+sudo chmod 640 /var/log/gateway/open-shell-audit.jsonl
 ```
 
 6. Register the forced shell.
@@ -165,6 +172,33 @@ ssh limited@YOUR_SERVER_IP
 - SMTP variables are present in `/usr/local/etc/gateway.env`.
 - You receive an OTP email after selecting `Open Shell`.
 - Entering the OTP opens a shell and `exit` returns to the gateway menu.
+- Open shell audit entries are written to `/var/log/gateway/open-shell-audit.jsonl`.
+
+## Audit Log
+
+The gateway keeps a best-effort history of `Open Shell` usage in:
+
+```bash
+/var/log/gateway/open-shell-audit.jsonl
+```
+
+In Docker deployments, that path is bind-mounted to the host at:
+
+```bash
+./logs/gateway/open-shell-audit.jsonl
+```
+
+Each line is a standalone JSON object with fields such as `timestamp`, `event`, `user`, `remote_addr`, `pid`, `session_id`, `ssh_client`, `ssh_connection`, `ssh_original_command`, `ssh_tty`, `otp_ref`, and `exit_status`.
+
+For a normal interactive SSH login, `ssh_original_command` is expected to be empty. It is populated only when the client connects with a remote command.
+
+Example:
+
+```json
+{"event":"shell_opened","otp_ref":"AB12CD","pid":1234,"remote_addr":"127.0.0.1","session_id":"d4c0e9d2f7f74d9b","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","timestamp":"2026-04-02T12:34:56Z","user":"limited"}
+```
+
+You can override the destination path by setting `GATEWAY_AUDIT_LOG` before launching the shell script.
 
 ## Onboarding For New Team Members
 

@@ -10,4 +10,5 @@ services:
       - ./gateway-shell.sh:/usr/local/bin/gateway-shell.sh:ro
       - ./send-otp.py:/usr/local/bin/send-otp.py:ro
       - ./.env:/usr/local/etc/gateway.env:ro
+      - ./logs/gateway:/var/log/gateway
     restart: unless-stopped
