@@ -29,11 +29,11 @@ def load_env_file(path: Path) -> dict[str, str]:
 
 def main() -> int:
     config = load_env_file(ENV_FILE)
-    host = config.get("SMTP_HOST", "")
-    port = int(config.get("SMTP_PORT", "587"))
-    user = config.get("SMTP_USER", "")
-    passwd = config.get("SMTP_PASS", "")
-    to_raw = config.get("OTP_TO", "")
+    host = os.environ.get("SMTP_HOST", "").strip() or config.get("SMTP_HOST", "")
+    port = int(os.environ.get("SMTP_PORT", "").strip() or config.get("SMTP_PORT", "587"))
+    user = os.environ.get("SMTP_USER", "").strip() or config.get("SMTP_USER", "")
+    passwd = os.environ.get("SMTP_PASS", "").strip() or config.get("SMTP_PASS", "")
+    to_raw = os.environ.get("OTP_TO", "").strip() or config.get("OTP_TO", "")
     recipients = [
         addr.strip()
         for addr in to_raw.replace(";", ",").split(",")

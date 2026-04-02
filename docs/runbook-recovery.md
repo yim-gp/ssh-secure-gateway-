@@ -35,8 +35,9 @@ docker compose logs gateway
 ### Verify local files before restart
 
 ```bash
-ls -l gateway-shell.sh send-otp.py .env
+ls -l gateway-shell.sh send-otp.py send-otp-helper.sh .env
 bash -n gateway-shell.sh
+bash -n send-otp-helper.sh
 python3 -m py_compile send-otp.py
 ```
 
@@ -81,7 +82,9 @@ sudo systemctl restart ssh
 ```bash
 sudo cp gateway-shell.sh /usr/local/bin/gateway-shell.sh
 sudo cp send-otp.py /usr/local/bin/send-otp.py
+sudo cp send-otp-helper.sh /usr/local/bin/send-otp-helper.sh
 sudo chmod 755 /usr/local/bin/gateway-shell.sh
+sudo chmod 750 /usr/local/bin/send-otp-helper.sh
 sudo chmod 644 /usr/local/bin/send-otp.py
 ```
 
@@ -90,6 +93,8 @@ sudo chmod 644 /usr/local/bin/send-otp.py
 ```bash
 sudoedit /usr/local/etc/gateway.env
 sudo chmod 600 /usr/local/etc/gateway.env
+echo 'limited ALL=(root) NOPASSWD: /usr/local/bin/send-otp-helper.sh' | sudo tee /etc/sudoers.d/limited-send-otp >/dev/null
+sudo chmod 440 /etc/sudoers.d/limited-send-otp
 ```
 
 ### Re-enable the forced shell
@@ -106,7 +111,7 @@ sudo systemctl restart ssh
 1. Verify `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `OTP_TO` are set.
 2. Confirm the SMTP provider allows the login method being used.
 3. Check whether the provider requires an app password instead of the main account password.
-4. Review stderr output from `send-otp.py` for authentication or TLS errors.
+4. Review stderr output from `send-otp.py` or `/usr/local/bin/send-otp-helper.sh` for authentication or TLS errors.
 
 ## Exit Criteria
 

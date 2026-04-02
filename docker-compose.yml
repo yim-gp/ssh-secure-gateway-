@@ -6,9 +6,11 @@ services:
     container_name: gateway-v2
     ports:
       - "2222:22"
+    env_file:
+      - .env
     volumes:
       - ./gateway-shell.sh:/usr/local/bin/gateway-shell.sh:ro
       - ./send-otp.py:/usr/local/bin/send-otp.py:ro
-      - ./.env:/usr/local/etc/gateway.env:ro
+      - ./send-otp-helper.sh:/usr/local/bin/send-otp-helper.sh:ro
       - ./logs/gateway:/var/log/gateway
     restart: unless-stopped

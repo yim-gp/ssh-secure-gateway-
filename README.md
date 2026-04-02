@@ -8,6 +8,7 @@ Gateway V2 is an SSH gateway that forces users through a menu-driven shell and s
 - `Dockerfile`: Ubuntu-based image with OpenSSH and Python.
 - `docker-entrypoint.sh`: Container bootstrap for SSH and forced command setup.
 - `gateway-shell.sh`: Interactive gateway menu and OTP validation flow.
+- `send-otp-helper.sh`: Root-only helper that sends OTP without exposing SMTP secrets to `limited`.
 - `send-otp.py`: SMTP mail sender for OTP delivery.
 - `.env.example`: Template for required mail configuration.
 - `docs/runbook-recovery.md`: Recovery and rollback steps.
@@ -18,9 +19,10 @@ Gateway V2 is an SSH gateway that forces users through a menu-driven shell and s
 1. User connects through SSH.
 2. SSH forces `gateway-shell.sh` instead of a normal login shell.
 3. The menu triggers OTP generation.
-4. `send-otp.py` sends the OTP to the configured email recipients.
-5. If the OTP is correct and not expired, the user gets a shell.
-6. Each `Open Shell` attempt is appended as JSONL to `/var/log/gateway/open-shell-audit.jsonl` unless `GATEWAY_AUDIT_LOG` overrides the path.
+4. `gateway-shell.sh` requests `send-otp-helper.sh` through restricted sudo.
+5. `send-otp.py` sends the OTP to the configured email recipients under the helper's privileges.
+6. If the OTP is correct and not expired, the user gets a shell.
+7. Each `Open Shell` attempt is appended as JSONL to `/var/log/gateway/open-shell-audit.jsonl` unless `GATEWAY_AUDIT_LOG` overrides the path.
 
 ## Prerequisites
 
@@ -88,7 +90,7 @@ ls -l ./logs/gateway
 ### Validate mounted files inside the container
 
 ```bash
-docker exec gateway-v2 ls -l /usr/local/bin/gateway-shell.sh /usr/local/bin/send-otp.py /usr/local/etc/gateway.env
+docker exec gateway-v2 ls -l /usr/local/bin/gateway-shell.sh /usr/local/bin/send-otp.py /usr/local/bin/send-otp-helper.sh /etc/gateway-otp.env /etc/gateway-shell.env
 ```
 
 ## Native Linux Installation
@@ -113,8 +115,10 @@ sudo mkdir -p /usr/local/bin /usr/local/etc /var/log/gateway
 ```bash
 sudo cp gateway-shell.sh /usr/local/bin/gateway-shell.sh
 sudo cp send-otp.py /usr/local/bin/send-otp.py
+sudo cp send-otp-helper.sh /usr/local/bin/send-otp-helper.sh
 sudo cp .env.example /usr/local/etc/gateway.env
 sudo chmod 755 /usr/local/bin/gateway-shell.sh
+sudo chmod 750 /usr/local/bin/send-otp-helper.sh
 sudo chmod 644 /usr/local/bin/send-otp.py
 sudo chmod 600 /usr/local/etc/gateway.env
 ```
@@ -126,6 +130,8 @@ sudo chmod 600 /usr/local/etc/gateway.env
 ```bash
 sudo useradd -m limited
 sudo passwd limited
+echo 'limited ALL=(root) NOPASSWD: /usr/local/bin/send-otp-helper.sh' | sudo tee /etc/sudoers.d/limited-send-otp >/dev/null
+sudo chmod 440 /etc/sudoers.d/limited-send-otp
 sudo chown limited:limited /var/log/gateway
 sudo chmod 750 /var/log/gateway
 sudo touch /var/log/gateway/open-shell-audit.jsonl
@@ -169,7 +175,7 @@ ssh limited@YOUR_SERVER_IP
 - `sshd` is running.
 - `gateway-shell.sh` is executable.
 - `send-otp.py` exists at `/usr/local/bin/send-otp.py`.
-- SMTP variables are present in `/usr/local/etc/gateway.env`.
+- SMTP variables are protected in a root-only config and used through `/usr/local/bin/send-otp-helper.sh`.
 - You receive an OTP email after selecting `Open Shell`.
 - Entering the OTP opens a shell and `exit` returns to the gateway menu.
 - Open shell audit entries are written to `/var/log/gateway/open-shell-audit.jsonl`.
@@ -212,7 +218,7 @@ You can override the destination path by setting `GATEWAY_AUDIT_LOG` before laun
 
 - Do not commit `.env`.
 - Rotate SMTP credentials if they were ever stored in plaintext outside a secret manager.
-- Remove the bootstrap password and `NOPASSWD` sudo before production use.
+- Remove the bootstrap password before production use.
 - Consider SSH key authentication and central logging before exposing this gateway publicly.
 
 ## Related Docs

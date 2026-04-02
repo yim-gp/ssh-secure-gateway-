@@ -56,9 +56,9 @@ grep -n '/usr/local/bin/gateway-shell.sh' /etc/shells
 ### Checks
 
 ```bash
-cat /usr/local/etc/gateway.env
+sudo cat /etc/gateway-otp.env
 python3 -m py_compile /usr/local/bin/send-otp.py
-_OTP_REF=TEST01 _OTP=123456 _OTP_TTL=120 python3 /usr/local/bin/send-otp.py
+sudo /usr/local/bin/send-otp-helper.sh TEST01 123456 120
 ```
 
 ### Likely causes
@@ -106,13 +106,13 @@ tail -n 20 ./logs/gateway/open-shell-audit.jsonl
 ### Docker
 
 ```bash
-docker exec gateway-v2 bash -lc 'pgrep -x sshd && [ -x /usr/local/bin/gateway-shell.sh ] && [ -f /usr/local/bin/send-otp.py ] && [ -r /usr/local/etc/gateway.env ] && echo ok'
+docker exec gateway-v2 bash -lc 'pgrep -x sshd && [ -x /usr/local/bin/gateway-shell.sh ] && [ -x /usr/local/bin/send-otp-helper.sh ] && [ -f /usr/local/bin/send-otp.py ] && [ -r /etc/gateway-shell.env ] && [ -f /etc/gateway-otp.env ] && echo ok'
 ```
 
 ### Native Linux
 
 ```bash
-pgrep -x sshd && [ -x /usr/local/bin/gateway-shell.sh ] && [ -f /usr/local/bin/send-otp.py ] && [ -r /usr/local/etc/gateway.env ] && echo ok
+pgrep -x sshd && [ -x /usr/local/bin/gateway-shell.sh ] && [ -x /usr/local/bin/send-otp-helper.sh ] && [ -f /usr/local/bin/send-otp.py ] && [ -f /etc/gateway-otp.env ] && echo ok
 ```
 
 ## Escalation Path

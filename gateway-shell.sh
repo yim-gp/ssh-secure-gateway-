@@ -16,9 +16,9 @@ show_menu() {
 }
 
 # SSH forced command sessions may not inherit container env vars.
-if [ -f /etc/gateway-otp.env ]; then
+if [ -f /etc/gateway-shell.env ]; then
   # shellcheck source=/dev/null
-  . /etc/gateway-otp.env
+  . /etc/gateway-shell.env
 fi
 
 AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.jsonl}"
@@ -134,7 +134,7 @@ while true; do
       OTP_REF=$(python3 -c "import secrets, string; alphabet = string.ascii_uppercase + string.digits; print(''.join(secrets.choice(alphabet) for _ in range(6)))")
       OTP=$(python3 -c "import secrets; print(f'{secrets.randbelow(1_000_000):06d}')")
       OTP_ISSUED_AT=$(date +%s)
-      _OTP_REF="$OTP_REF" _OTP="$OTP" _OTP_TTL="$OTP_TTL" python3 /usr/local/bin/send-otp.py
+      sudo -n /usr/local/bin/send-otp-helper.sh "$OTP_REF" "$OTP" "$OTP_TTL"
       SEND_STATUS=$?
       if [ $SEND_STATUS -ne 0 ]; then
         audit_log "otp_send_failed" "otp_ref=$OTP_REF" "send_status=$SEND_STATUS"

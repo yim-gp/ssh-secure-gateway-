@@ -10,11 +10,13 @@ RUN apt update && apt install -y \
 # สร้าง user
 RUN useradd -m limited && echo "limited:limited123" | chpasswd
 
-# อนุญาต sudo (optional)
-RUN echo "limited ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Allow only the OTP helper to run with sudo.
+RUN printf 'limited ALL=(root) NOPASSWD: /usr/local/bin/send-otp-helper.sh\n' > /etc/sudoers.d/limited-send-otp && \
+    chmod 440 /etc/sudoers.d/limited-send-otp
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY send-otp-helper.sh /usr/local/bin/send-otp-helper.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/send-otp-helper.sh
 
 EXPOSE 22
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
