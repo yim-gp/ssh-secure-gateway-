@@ -21,8 +21,137 @@ if [ -f /etc/gateway-shell.env ]; then
   . /etc/gateway-shell.env
 fi
 
-AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.jsonl}"
+AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.json}"
 SESSION_ID="$(python3 -c "import secrets; print(secrets.token_hex(8))")"
+ACTION_ID=""
+ACTION_TYPE=""
+ACTION_SEQUENCE=0
+ACTION_EVENTS_JSON="[]"
+ACTION_ALERTS_JSON="[]"
+ACTION_STARTED_AT=""
+ACTION_ENDED_AT=""
+
+generate_token() {
+  python3 -c "import secrets; print(secrets.token_hex(8))"
+}
+
+start_action() {
+  ACTION_TYPE="$1"
+  ACTION_ID="$(generate_token)"
+  ACTION_SEQUENCE=0
+  ACTION_EVENTS_JSON="[]"
+  ACTION_ALERTS_JSON="[]"
+  ACTION_STARTED_AT=""
+  ACTION_ENDED_AT=""
+}
+
+end_action() {
+  flush_action_log
+  ACTION_ID=""
+  ACTION_TYPE=""
+  ACTION_SEQUENCE=0
+  ACTION_EVENTS_JSON="[]"
+  ACTION_ALERTS_JSON="[]"
+  ACTION_STARTED_AT=""
+  ACTION_ENDED_AT=""
+}
+
+append_to_json_array() {
+  local current_array="$1"
+  local entry_json="$2"
+
+  CURRENT_ARRAY="$current_array" ENTRY_JSON="$entry_json" python3 - <<'PY'
+import json
+import os
+
+items = json.loads(os.environ["CURRENT_ARRAY"])
+items.append(json.loads(os.environ["ENTRY_JSON"]))
+print(json.dumps(items, separators=(",", ":"), sort_keys=True))
+PY
+}
+
+format_json_pretty() {
+  local json_input="$1"
+
+  JSON_INPUT="$json_input" python3 - <<'PY'
+import json
+import os
+
+print(json.dumps(json.loads(os.environ["JSON_INPUT"]), indent=2, sort_keys=True))
+PY
+}
+
+flush_action_log() {
+  local log_dir remote_addr username tty_name ended_at action_json
+
+  if [ -z "$ACTION_ID" ]; then
+    return
+  fi
+
+  if [ "$ACTION_EVENTS_JSON" = "[]" ] && [ "$ACTION_ALERTS_JSON" = "[]" ]; then
+    return
+  fi
+
+  log_dir=$(dirname "$AUDIT_LOG_FILE")
+  mkdir -p "$log_dir" 2>/dev/null || true
+
+  remote_addr=$(get_remote_addr)
+  username=$(id -un 2>/dev/null || printf '%s' "unknown")
+  tty_name=$(get_tty_name)
+  ended_at="$ACTION_ENDED_AT"
+
+  if [ -z "$ended_at" ]; then
+    ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  fi
+
+  ACTION_JSON=$(ACTION_ID_VALUE="$ACTION_ID" \
+  ACTION_TYPE_VALUE="$ACTION_TYPE" \
+  ACTION_STARTED_AT_VALUE="$ACTION_STARTED_AT" \
+  ACTION_ENDED_AT_VALUE="$ended_at" \
+  ACTION_EVENTS_VALUE="$ACTION_EVENTS_JSON" \
+  ACTION_ALERTS_VALUE="$ACTION_ALERTS_JSON" \
+  USERNAME="$username" \
+  REMOTE_ADDR="$remote_addr" \
+  SSH_TTY_VALUE="$tty_name" \
+  SSH_CONNECTION_VALUE="${SSH_CONNECTION:-}" \
+  SSH_CLIENT_VALUE="${SSH_CLIENT:-}" \
+  SSH_ORIGINAL_COMMAND_VALUE="${SSH_ORIGINAL_COMMAND:-}" \
+  SESSION_ID_VALUE="$SESSION_ID" \
+  python3 - <<'PY' 2>/dev/null || true
+import json
+import os
+
+events = json.loads(os.environ["ACTION_EVENTS_VALUE"])
+alerts = json.loads(os.environ["ACTION_ALERTS_VALUE"])
+
+payload = {
+  "action_id": os.environ["ACTION_ID_VALUE"],
+  "action_type": os.environ["ACTION_TYPE_VALUE"],
+  "alerts": alerts,
+  "alerts_count": len(alerts),
+  "ended_at": os.environ["ACTION_ENDED_AT_VALUE"],
+  "event_type": "action",
+  "events": events,
+  "events_count": len(events),
+  "remote_addr": os.environ["REMOTE_ADDR"],
+  "session_id": os.environ["SESSION_ID_VALUE"],
+  "ssh_client": os.environ["SSH_CLIENT_VALUE"],
+  "ssh_connection": os.environ["SSH_CONNECTION_VALUE"],
+  "ssh_original_command": os.environ["SSH_ORIGINAL_COMMAND_VALUE"],
+  "ssh_tty": os.environ["SSH_TTY_VALUE"],
+  "started_at": os.environ["ACTION_STARTED_AT_VALUE"],
+  "user": os.environ["USERNAME"],
+}
+
+print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+PY
+)
+
+  if [ -n "$ACTION_JSON" ]; then
+    format_json_pretty "$ACTION_JSON" >> "$AUDIT_LOG_FILE" 2>/dev/null || true
+    printf '\n' >> "$AUDIT_LOG_FILE" 2>/dev/null || true
+  fi
+}
 
 get_remote_addr() {
   if [ -n "$SSH_CONNECTION" ]; then
@@ -49,20 +178,25 @@ get_tty_name() {
   printf '%s' "unknown"
 }
 
-audit_log() {
-  local event="$1"
-  shift
-  local log_dir timestamp remote_addr username tty_name
-
-  log_dir=$(dirname "$AUDIT_LOG_FILE")
-  mkdir -p "$log_dir" 2>/dev/null || true
+emit_log() {
+  local event_type="$1"
+  local event="$2"
+  shift 2
+  local timestamp remote_addr username tty_name sequence_value entry_json
 
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   remote_addr=$(get_remote_addr)
   username=$(id -un 2>/dev/null || printf '%s' "unknown")
   tty_name=$(get_tty_name)
+  sequence_value=""
 
-  TIMESTAMP="$timestamp" \
+  if [ -n "$ACTION_ID" ]; then
+    ACTION_SEQUENCE=$((ACTION_SEQUENCE + 1))
+    sequence_value="$ACTION_SEQUENCE"
+  fi
+
+  entry_json=$(TIMESTAMP="$timestamp" \
+  EVENT_TYPE_VALUE="$event_type" \
   EVENT_NAME="$event" \
   USERNAME="$username" \
   REMOTE_ADDR="$remote_addr" \
@@ -71,7 +205,9 @@ audit_log() {
   SSH_CLIENT_VALUE="${SSH_CLIENT:-}" \
   SSH_ORIGINAL_COMMAND_VALUE="${SSH_ORIGINAL_COMMAND:-}" \
   SESSION_ID_VALUE="$SESSION_ID" \
-  AUDIT_LOG_PATH="$AUDIT_LOG_FILE" \
+  ACTION_ID_VALUE="$ACTION_ID" \
+  ACTION_TYPE_VALUE="$ACTION_TYPE" \
+  ACTION_SEQUENCE_VALUE="$sequence_value" \
   python3 - "$@" <<'PY' 2>/dev/null || true
 import json
 import os
@@ -89,6 +225,7 @@ def to_mapping(items: list[str]) -> dict[str, str]:
 
 
 payload = {
+  "event_type": os.environ["EVENT_TYPE_VALUE"],
   "timestamp": os.environ["TIMESTAMP"],
   "event": os.environ["EVENT_NAME"],
   "user": os.environ["USERNAME"],
@@ -100,12 +237,54 @@ payload = {
   "ssh_original_command": os.environ["SSH_ORIGINAL_COMMAND_VALUE"],
   "ssh_tty": os.environ["SSH_TTY_VALUE"],
 }
-payload.update(to_mapping(sys.argv[1:]))
 
-with open(os.environ["AUDIT_LOG_PATH"], "a", encoding="utf-8") as handle:
-  handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True))
-  handle.write("\n")
+if os.environ["ACTION_ID_VALUE"]:
+  payload["action_id"] = os.environ["ACTION_ID_VALUE"]
+
+if os.environ["ACTION_TYPE_VALUE"]:
+  payload["action_type"] = os.environ["ACTION_TYPE_VALUE"]
+
+if os.environ["ACTION_SEQUENCE_VALUE"]:
+  payload["sequence"] = int(os.environ["ACTION_SEQUENCE_VALUE"])
+
+payload.update(to_mapping(sys.argv[1:]))
+print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
 PY
+)
+
+  if [ -z "$entry_json" ]; then
+    return
+  fi
+
+  if [ -z "$ACTION_ID" ]; then
+    format_json_pretty "$entry_json" >> "$AUDIT_LOG_FILE" 2>/dev/null || true
+    printf '\n' >> "$AUDIT_LOG_FILE" 2>/dev/null || true
+    return
+  fi
+
+  if [ -z "$ACTION_STARTED_AT" ]; then
+    ACTION_STARTED_AT="$timestamp"
+  fi
+  ACTION_ENDED_AT="$timestamp"
+
+  if [ "$event_type" = "alert" ]; then
+    ACTION_ALERTS_JSON=$(append_to_json_array "$ACTION_ALERTS_JSON" "$entry_json")
+    return
+  fi
+
+  ACTION_EVENTS_JSON=$(append_to_json_array "$ACTION_EVENTS_JSON" "$entry_json")
+}
+
+audit_log() {
+  emit_log "audit" "$@"
+}
+
+alert_log() {
+  local event="$1"
+  local alert_code="$2"
+  local severity="$3"
+  shift 3
+  emit_log "alert" "$event" "alert_code=$alert_code" "severity=$severity" "$@"
 }
 
 MAX_OTP_REQUESTS_PER_SESSION=5
@@ -118,12 +297,15 @@ while true; do
 
   case "$choice" in
     1)
+      start_action "open_shell"
       audit_log "open_shell_selected" "otp_requests_used=$OTP_REQUEST_COUNT"
       if [ "$OTP_REQUEST_COUNT" -ge "$MAX_OTP_REQUESTS_PER_SESSION" ]; then
         audit_log "open_shell_blocked" "reason=otp_request_limit_exceeded" "otp_requests_used=$OTP_REQUEST_COUNT"
+        alert_log "otp_request_limit_exceeded" "GW_OTP_REQUEST_LIMIT" "medium" "otp_requests_used=$OTP_REQUEST_COUNT"
         echo
         echo "❌ OTP request limit exceeded for this session. Disconnecting..."
         sleep 1
+        end_action
         exit 1
       fi
       OTP_REQUEST_COUNT=$((OTP_REQUEST_COUNT + 1))
@@ -138,8 +320,10 @@ while true; do
       SEND_STATUS=$?
       if [ $SEND_STATUS -ne 0 ]; then
         audit_log "otp_send_failed" "otp_ref=$OTP_REF" "send_status=$SEND_STATUS"
+        alert_log "otp_delivery_failed" "GW_OTP_DELIVERY_FAILED" "high" "otp_ref=$OTP_REF" "send_status=$SEND_STATUS"
         echo "❌ Failed to send OTP. Contact admin."
         sleep 2
+        end_action
         continue
       fi
       audit_log "otp_sent" "otp_ref=$OTP_REF" "otp_ttl=$OTP_TTL" "remaining_requests=$REMAINING_REQUESTS"
@@ -168,6 +352,9 @@ while true; do
         fi
         REMAINING=$((MAX_OTP_ATTEMPTS - ATTEMPT))
         audit_log "otp_invalid" "otp_ref=$OTP_REF" "attempt=$ATTEMPT" "remaining_attempts=$REMAINING"
+        if [ "$REMAINING" -eq 0 ]; then
+          alert_log "otp_attempt_limit_reached" "GW_OTP_ATTEMPT_LIMIT" "medium" "otp_ref=$OTP_REF" "attempt=$ATTEMPT"
+        fi
         if [ "$REMAINING" -gt 0 ]; then
           echo "❌ Invalid OTP ($REMAINING attempt(s) remaining)"
         else
@@ -177,10 +364,12 @@ while true; do
       done
       if [ "$OTP_VALIDATED" -ne 1 ]; then
         audit_log "open_shell_denied" "reason=otp_validation_failed" "otp_ref=$OTP_REF"
+        alert_log "open_shell_access_denied" "GW_OPEN_SHELL_DENIED" "medium" "reason=otp_validation_failed" "otp_ref=$OTP_REF"
         OTP=""
         OTP_REF=""
         OTP_ISSUED_AT=0
         sleep 2
+        end_action
         continue
       fi
       SHELL_AUDIT_REF="$OTP_REF"
@@ -194,6 +383,7 @@ while true; do
       bash
       SHELL_STATUS=$?
       audit_log "shell_closed" "otp_ref=$SHELL_AUDIT_REF" "exit_status=$SHELL_STATUS"
+      end_action
       ;;
     2)
       show_banner

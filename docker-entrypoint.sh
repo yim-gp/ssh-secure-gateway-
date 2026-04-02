@@ -6,7 +6,7 @@ HELPER_PATH="/usr/local/bin/send-otp-helper.sh"
 SSHD_CONFIG="/etc/ssh/sshd_config"
 OTP_ENV_FILE="/etc/gateway-otp.env"
 SHELL_ENV_FILE="/etc/gateway-shell.env"
-AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.jsonl}"
+AUDIT_LOG_FILE="${GATEWAY_AUDIT_LOG:-/var/log/gateway/open-shell-audit.json}"
 AUDIT_LOG_DIR="$(dirname "$AUDIT_LOG_FILE")"
 
 # If no mounted script exists, create a safe default fallback.

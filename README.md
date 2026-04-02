@@ -22,7 +22,7 @@ Gateway V2 is an SSH gateway that forces users through a menu-driven shell and s
 4. `gateway-shell.sh` requests `send-otp-helper.sh` through restricted sudo.
 5. `send-otp.py` sends the OTP to the configured email recipients under the helper's privileges.
 6. If the OTP is correct and not expired, the user gets a shell.
-7. Each `Open Shell` attempt is appended as JSONL to `/var/log/gateway/open-shell-audit.jsonl` unless `GATEWAY_AUDIT_LOG` overrides the path.
+7. Each `Open Shell` attempt is written to `/var/log/gateway/open-shell-audit.json` unless `GATEWAY_AUDIT_LOG` overrides the path.
 
 ## Prerequisites
 
@@ -134,9 +134,9 @@ echo 'limited ALL=(root) NOPASSWD: /usr/local/bin/send-otp-helper.sh' | sudo tee
 sudo chmod 440 /etc/sudoers.d/limited-send-otp
 sudo chown limited:limited /var/log/gateway
 sudo chmod 750 /var/log/gateway
-sudo touch /var/log/gateway/open-shell-audit.jsonl
-sudo chown limited:limited /var/log/gateway/open-shell-audit.jsonl
-sudo chmod 640 /var/log/gateway/open-shell-audit.jsonl
+sudo touch /var/log/gateway/open-shell-audit.json
+sudo chown limited:limited /var/log/gateway/open-shell-audit.json
+sudo chmod 640 /var/log/gateway/open-shell-audit.json
 ```
 
 6. Register the forced shell.
@@ -178,30 +178,32 @@ ssh limited@YOUR_SERVER_IP
 - SMTP variables are protected in a root-only config and used through `/usr/local/bin/send-otp-helper.sh`.
 - You receive an OTP email after selecting `Open Shell`.
 - Entering the OTP opens a shell and `exit` returns to the gateway menu.
-- Open shell audit entries are written to `/var/log/gateway/open-shell-audit.jsonl`.
+- Open shell audit entries are written to `/var/log/gateway/open-shell-audit.json`.
 
 ## Audit Log
 
 The gateway keeps a best-effort history of `Open Shell` usage in:
 
 ```bash
-/var/log/gateway/open-shell-audit.jsonl
+/var/log/gateway/open-shell-audit.json
 ```
 
 In Docker deployments, that path is bind-mounted to the host at:
 
 ```bash
-./logs/gateway/open-shell-audit.jsonl
+./logs/gateway/open-shell-audit.json
 ```
 
-Each line is a standalone JSON object with fields such as `timestamp`, `event`, `user`, `remote_addr`, `pid`, `session_id`, `ssh_client`, `ssh_connection`, `ssh_original_command`, `ssh_tty`, `otp_ref`, and `exit_status`.
+The log file is written as formatted JSON objects separated by a blank line. Each top-level object represents one complete action record and contains fields such as `event_type`, `action_id`, `action_type`, `started_at`, `ended_at`, `user`, `remote_addr`, `session_id`, `ssh_client`, `ssh_connection`, `ssh_original_command`, `ssh_tty`, plus nested `events` and `alerts` arrays.
 
 For a normal interactive SSH login, `ssh_original_command` is expected to be empty. It is populated only when the client connects with a remote command.
+
+`action_id` groups one `Open Shell` attempt into a single JSON object. The nested `events` array contains the ordered audit trail, and the nested `alerts` array contains alert records with `alert_code` and `severity` so SIEM rules can key off stable identifiers instead of parsing freeform event names.
 
 Example:
 
 ```json
-{"event":"shell_opened","otp_ref":"AB12CD","pid":1234,"remote_addr":"127.0.0.1","session_id":"d4c0e9d2f7f74d9b","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","timestamp":"2026-04-02T12:34:56Z","user":"limited"}
+{"action_id":"7b5f2d1a9c4e6f30","action_type":"open_shell","alerts":[{"action_id":"7b5f2d1a9c4e6f30","action_type":"open_shell","alert_code":"GW_OTP_ATTEMPT_LIMIT","attempt":"3","event":"otp_attempt_limit_reached","event_type":"alert","otp_ref":"AB12CD","pid":1234,"remote_addr":"127.0.0.1","sequence":6,"session_id":"d4c0e9d2f7f74d9b","severity":"medium","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","timestamp":"2026-04-02T12:34:57Z","user":"limited"}],"alerts_count":1,"ended_at":"2026-04-02T12:34:58Z","event_type":"action","events":[{"action_id":"7b5f2d1a9c4e6f30","action_type":"open_shell","event":"open_shell_selected","event_type":"audit","otp_requests_used":"0","pid":1234,"remote_addr":"127.0.0.1","sequence":1,"session_id":"d4c0e9d2f7f74d9b","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","timestamp":"2026-04-02T12:34:50Z","user":"limited"},{"action_id":"7b5f2d1a9c4e6f30","action_type":"open_shell","event":"shell_opened","event_type":"audit","otp_ref":"AB12CD","pid":1234,"remote_addr":"127.0.0.1","sequence":5,"session_id":"d4c0e9d2f7f74d9b","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","timestamp":"2026-04-02T12:34:56Z","user":"limited"}],"events_count":2,"remote_addr":"127.0.0.1","session_id":"d4c0e9d2f7f74d9b","ssh_client":"127.0.0.1 57772 2222","ssh_connection":"127.0.0.1 57772 172.18.0.2 22","ssh_original_command":"","ssh_tty":"/dev/pts/0","started_at":"2026-04-02T12:34:50Z","user":"limited"}
 ```
 
 You can override the destination path by setting `GATEWAY_AUDIT_LOG` before launching the shell script.

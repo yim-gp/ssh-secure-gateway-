@@ -90,8 +90,8 @@ sudo /usr/local/bin/send-otp-helper.sh TEST01 123456 120
 whoami
 pwd
 env | grep -E 'SMTP|OTP'
-tail -n 20 /var/log/gateway/open-shell-audit.jsonl
-tail -n 20 ./logs/gateway/open-shell-audit.jsonl
+tail -n 20 /var/log/gateway/open-shell-audit.json
+tail -n 20 ./logs/gateway/open-shell-audit.json
 ```
 
 ### Likely causes
