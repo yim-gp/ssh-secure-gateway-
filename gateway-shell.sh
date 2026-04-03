@@ -178,6 +178,20 @@ get_tty_name() {
   printf '%s' "unknown"
 }
 
+resolve_target_shell() {
+  if [ -n "$GATEWAY_TARGET_SHELL" ] && [ -x "$GATEWAY_TARGET_SHELL" ]; then
+    printf '%s' "$GATEWAY_TARGET_SHELL"
+    return
+  fi
+
+  if [ -x /bin/bash ]; then
+    printf '%s' "/bin/bash"
+    return
+  fi
+
+  printf '%s' "/bin/sh"
+}
+
 emit_log() {
   local event_type="$1"
   local event="$2"
@@ -378,9 +392,10 @@ while true; do
       OTP_ISSUED_AT=0
       echo "✅ Access granted"
       sleep 1
+      TARGET_SHELL="$(resolve_target_shell)"
       echo "Opening shell... (type 'exit' to return to menu)"
       audit_log "shell_opened" "otp_ref=$SHELL_AUDIT_REF"
-      bash
+      "$TARGET_SHELL" -i
       SHELL_STATUS=$?
       audit_log "shell_closed" "otp_ref=$SHELL_AUDIT_REF" "exit_status=$SHELL_STATUS"
       end_action
